@@ -123,21 +123,168 @@ namespace JsonLibrary
         static string SerializeClass(object obj)
         {
             Type type = obj.GetType();
-            string typeString = type.AssemblyQualifiedName;
+            string? typeString = type.AssemblyQualifiedName;
+            if (typeString == null) { throw new Exception(); };
             Dictionary<string, JsonValue> dict = new();
             dict.Add("class", new JsonValue(typeString));
-            foreach (PropertyInfo property in type.GetProperties())
+            foreach (FieldInfo field in type.GetFields())
             {
-                if (property.Name == "class")
+                if (field.Name == "class")
                 {
                     throw new Exception("В классе уже есть поле class");
                 };
-                dict.Add(property.Name, new JsonValue(property.GetValue(obj)));
+                dict.Add(field.Name, new JsonValue(field.GetValue(obj)));
             }
             return dict.Serialize();
 
         }
+        public static object? Deserialize(this string str)
+        {
+            int i = 0;
+            str = str.Trim();
+            skip_spaces();
+            return inner_deserialize();
+            void skip_spaces()
+            {
+                while (i < str.Length && char.IsWhiteSpace(str[i]))
+                {
+                    i++;
+                }
+            }
+            object? inner_deserialize()
+            {
+                if (str[i] == '{')
+                {
+                    i++;
+                    skip_spaces();
+                    Dictionary<string, object?> dict = new();
+                    if (str[i] != '}')
+                    {
+                        while (true)
+                        {
+                            string? name = (string?)inner_deserialize();
+                            skip_spaces();
+                            if (str[i] == ':')
+                            {
+                                i++;
+                                skip_spaces();
+                            } else
+                            {
+                                throw new Exception();
+                            }
+                            object? value = inner_deserialize();
+                            if (name != null)
+                            {
+                                dict.Add(name, value);
 
+                            } else
+                            {
+                                throw new Exception();
+                            }
+                            skip_spaces();
+                            if (str[i] == ',')
+                            {
+                                i++;
+                            } else
+                            {
+                                break;
+                            }
+                        }
+                        if (str[i] != '}')
+                        {
+                            throw new Exception();
+                        }
+                        if (dict.ContainsKey("class"))
+                        {
+                            object? classTypeString = dict["class"];
+                            if (classTypeString != null)
+                            {
+                                Type? desrializedObjectType = Type.GetType((string)classTypeString);
+                                if (desrializedObjectType != null)
+                                {
+                                    object? obj = Activator.CreateInstance(desrializedObjectType);
+                                    foreach (FieldInfo field in desrializedObjectType.GetFields())
+                                    {
+                                        if (field.Name == "class")
+                                        {
+                                            throw new Exception("В классе уже есть поле class");
+                                        };
+                                        //dict.Add(field.Name, new JsonValue(field.GetValue(obj)));
+                                        field.SetValue(obj, dict[field.Name]);
+                                    }
+                                    return obj;
+                                } else 
+                                { 
+                                    throw new Exception(); 
+                                }
+                            } else
+                            {
+                                throw new Exception("Класс не найден");
+                            }
+                        } else
+                        {
+                            Dictionary<string, JsonValue> results = new();
+                            foreach (var pair in dict)
+                            {
+                                results.Add(pair.Key, new JsonValue(pair.Value));
+                            }
+                            return new JsonValue(results);
+                        }
+                    } else
+                    {
+                        return new JsonValue(new Dictionary<string, JsonValue>());
+                    }
+
+                }
+                else if (str[i] == '[')
+                {
+                    throw new NotImplementedException();
+                }
+                else if (str[i] == '"')
+                {
+                    i++;
+                    string resultingString = "";
+                    while (true)
+                    {
+                        if (str[i] == '"' && str[i-1] != '\\')
+                        {
+                            break;
+                        }
+                        resultingString+= str[i];
+                        i++;
+                    }
+                    i++;
+                    return resultingString;
+                }
+                else if (char.IsDigit(str[i]) || str[i] == '-')
+                {
+                    throw new NotImplementedException();
+                }
+                else
+                {
+                    string substring = str.Substring(i, 5);
+                    if (substring == "false")
+                    {
+                        i += 5;
+                        return false;
+                    }
+                    else if (substring.StartsWith("true"))
+                    {
+                        i += 4;
+                        return true;
+                    }
+                    else if (substring.StartsWith("null"))
+                    {
+                        i += 4;
+                        return null;
+                    }
+                    else
+                    {
+                        throw new Exception("Как неожиданно и неприятно");
+                    }
+                }
+            }
+        }
     }
 
     public class JsonValue
