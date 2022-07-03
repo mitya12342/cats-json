@@ -1,16 +1,38 @@
-﻿//Console.WriteLine(Serialize(new List<JsonValue>() { new JsonValue(1), new JsonValue("kek"), new JsonValue(new Dictionary<string, JsonValue>() { { "a", new JsonValue(1) }, { "b", new JsonValue(true) }, { "c", new JsonValue(null) } }) }));
-using JsonLibrary;
-WeatherForecast test = new WeatherForecast();
-test.TemperatureCelsius = false;
-test.Date = DateTime.Now.ToString();
+﻿using JsonLibrary;
+
+//Вроде работает с простыми типами
+
+WeatherForecast test = new();
+test.SunIsADeadlyLaser = false;
+test.Temp = 25;
+test.Test = "qweewq";
 
 string json = test.Serialize();
+Console.WriteLine(json);
+
 WeatherForecast? test2 = (WeatherForecast?)json.Deserialize();
-Console.WriteLine("qwe");
+
+//Не доделано (Вложенные generic коллекции)
+
+Week Week = new();
+Week.WeekForecast.Add(test);
+Console.WriteLine(Week.Serialize());
+
+Dictionary<string, List<int>> test_root = new() { { "a", new List<int>() { 1, 2, 3 } }, { "b", new List<int>() { 3, 2, 1 } } };
+
+Console.WriteLine(test_root.Serialize()); 
+
+
+
 public class WeatherForecast
 {
-    public string? Date;
-    public bool TemperatureCelsius;
+    public int Temp;
+    public bool SunIsADeadlyLaser;
     public string? Summary;
+    public string? Test;
 }
 
+public class Week
+{
+    public List<WeatherForecast> WeekForecast = new();
+}

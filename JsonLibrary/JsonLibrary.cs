@@ -2,6 +2,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace JsonLibrary
 {
@@ -144,13 +145,12 @@ namespace JsonLibrary
             str = str.Trim();
             skip_spaces();
             return inner_deserialize();
+
             void skip_spaces()
             {
-                while (i < str.Length && char.IsWhiteSpace(str[i]))
-                {
-                    i++;
-                }
+                while (i < str.Length && char.IsWhiteSpace(str[i])) { i++; }
             }
+
             object? inner_deserialize()
             {
                 if (str[i] == '{')
@@ -194,6 +194,7 @@ namespace JsonLibrary
                         {
                             throw new Exception();
                         }
+                        i++;
                         if (dict.ContainsKey("class"))
                         {
                             object? classTypeString = dict["class"];
@@ -209,8 +210,27 @@ namespace JsonLibrary
                                         {
                                             throw new Exception("В классе уже есть поле class");
                                         };
-                                        //dict.Add(field.Name, new JsonValue(field.GetValue(obj)));
-                                        field.SetValue(obj, dict[field.Name]);
+                                        object? fieldContents = dict[field.Name];
+                                        Type fieldType = field.FieldType;
+                                        if (IsNumeric(fieldType))
+                                        {
+                                            field.SetValue(obj, Convert.ChangeType(fieldContents, fieldType));
+
+                                        } else if (IsList(fieldType))
+                                        {
+
+
+                                         
+                                        } else if (IsDict(fieldType))
+                                        {
+
+                                        } else
+                                        {
+                                            field.SetValue(obj, fieldContents);
+                                        }
+                                           
+                                        
+                                        
                                     }
                                     return obj;
                                 } else 
@@ -223,22 +243,56 @@ namespace JsonLibrary
                             }
                         } else
                         {
-                            Dictionary<string, JsonValue> results = new();
-                            foreach (var pair in dict)
-                            {
-                                results.Add(pair.Key, new JsonValue(pair.Value));
-                            }
-                            return new JsonValue(results);
+                            //Dictionary<string, JsonValue> results = new();
+                            //foreach (var pair in dict)
+                            //{
+                            //    results.Add(pair.Key, new JsonValue(pair.Value));
+                            //}
+                            //return new JsonValue(results);
+                            return dict;
                         }
                     } else
                     {
-                        return new JsonValue(new Dictionary<string, JsonValue>());
+                        return dict;
                     }
 
                 }
                 else if (str[i] == '[')
                 {
-                    throw new NotImplementedException();
+                    i++;
+                    skip_spaces();
+                    List<object?> list = new();
+                    if (str[i] != ']')
+                    {
+                        while (true)
+                        {
+                            object? value = inner_deserialize();
+                            list.Add(value);
+                            skip_spaces();
+                            if (str[i] == ',')
+                            {
+                                i++;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                        if (str[i] != ']')
+                        {
+                            throw new Exception();
+                        }
+                        else
+                        {
+                            i++;
+                            return list;
+                        }
+                    }
+                    else
+                    {
+                        i++;
+                        return list;
+                    }
                 }
                 else if (str[i] == '"')
                 {
@@ -258,7 +312,15 @@ namespace JsonLibrary
                 }
                 else if (char.IsDigit(str[i]) || str[i] == '-')
                 {
-                    throw new NotImplementedException();
+                    Match match = new Regex(@"([-])?((0)|([1-9])[0-9]*)(\.[0-9]+)?((e|E)([-]|[+])?[0-9]+)?").Match(str, i);
+                    if (match.Success)
+                    {
+                        i+= match.Value.Length;
+                        return double.Parse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture.NumberFormat);
+                    } else
+                    {
+                        throw new Exception();
+                    }
                 }
                 else
                 {
@@ -284,6 +346,34 @@ namespace JsonLibrary
                     }
                 }
             }
+        }
+        static bool IsNumeric(Type type)
+        {
+            switch (Type.GetTypeCode(type))
+            {
+                case TypeCode.Byte:
+                case TypeCode.SByte:
+                case TypeCode.UInt16:
+                case TypeCode.UInt32:
+                case TypeCode.UInt64:
+                case TypeCode.Int16:
+                case TypeCode.Int32:
+                case TypeCode.Int64:
+                case TypeCode.Decimal:
+                case TypeCode.Double:
+                case TypeCode.Single:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        static bool IsList(Type type)
+        {
+            return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>);
+        }
+        static bool IsDict(Type type)
+        {
+            return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Dictionary<,>);
         }
     }
 
